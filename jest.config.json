@@ -1,5 +1,7 @@
 {
   "collectCoverage": true,
+  "collectCoverageFrom": ["src/**/*.js", "scripts/**/*.js", "!src/**/*.test.js", "!src/config.js"],
+  "setupFiles": ["<rootDir>/test/setup.js"],
   "coverageReporters": ["json-summary", "text"],
   "coverageThreshold": {
     "global": {
