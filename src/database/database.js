@@ -78,22 +78,66 @@ class DB {
   async updateUser(userId, name, email, password) {
     const connection = await this.getConnection();
     try {
+      const existing = await this.query(connection, 'SELECT email FROM user WHERE id=?', [userId]);
+      if (!existing.length) {
+        throw new StatusCodeError('unknown user', 404);
+      }
       const params = [];
+      const values = [];
       if (password) {
         const hashedPassword = await bcrypt.hash(password, 10);
-        params.push(`password='${hashedPassword}'`);
+        params.push('password=?');
+        values.push(hashedPassword);
       }
       if (email) {
-        params.push(`email='${email}'`);
+        params.push('email=?');
+        values.push(email);
       }
       if (name) {
-        params.push(`name='${name}'`);
+        params.push('name=?');
+        values.push(name);
       }
       if (params.length > 0) {
-        const query = `UPDATE user SET ${params.join(', ')} WHERE id=${userId}`;
-        await this.query(connection, query);
+        await this.query(connection, `UPDATE user SET ${params.join(', ')} WHERE id=?`, [...values, userId]);
       }
-      return this.getUser(email, password);
+      return this.getUser(email || existing[0].email);
+    } finally {
+      connection.end();
+    }
+  }
+
+  async getUsers(page = 0, limit = 10, nameFilter = '*') {
+    const connection = await this.getConnection();
+    try {
+      const rows = await this.query(connection, `SELECT id, name, email FROM user WHERE name LIKE ? ORDER BY id LIMIT ${limit + 1} OFFSET ${page * limit}`, [nameFilter.replace(/\*/g, '%')]);
+      const more = rows.length > limit;
+      const users = rows.slice(0, limit);
+      for (const user of users) {
+        const roles = await this.query(connection, 'SELECT role, objectId FROM userRole WHERE userId=?', [user.id]);
+        user.roles = roles.map(r => ({ role: r.role, objectId: r.objectId || undefined }));
+      }
+      return [users, more];
+    } finally {
+      connection.end();
+    }
+  }
+
+  async deleteUser(userId) {
+    const connection = await this.getConnection();
+    try {
+      await connection.beginTransaction();
+      try {
+        await this.query(connection, 'DELETE FROM auth WHERE userId=?', [userId]);
+        await this.query(connection, 'DELETE FROM userRole WHERE userId=?', [userId]);
+        const result = await this.query(connection, 'DELETE FROM user WHERE id=?', [userId]);
+        if (!result.affectedRows) {
+          throw new StatusCodeError('unknown user', 404);
+        }
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      }
     } finally {
       connection.end();
     }

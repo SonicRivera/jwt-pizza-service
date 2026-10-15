@@ -61,18 +61,82 @@ test('internal user lookup supports omission of password', async () => {
 });
 test('updating supplied fields hashes password and reloads user', async () => {
   const reload = jest.spyOn(DB, 'getUser').mockResolvedValue({ id: 7 });
+  results([{ email: 'old@test.com' }]);
   expect(await DB.updateUser(7, 'New', 'new@test.com', 'secret')).toEqual({ id: 7 });
-  const sql = connection.execute.mock.calls[0][0];
-  expect(sql).toContain("email='new@test.com'");
-  expect(sql).toContain("name='New'");
-  expect(sql).toContain('WHERE id=7');
-  expect(await bcrypt.compare('secret', sql.match(/password='([^']+)'/)[1])).toBe(true);
-  expect(reload).toHaveBeenCalledWith('new@test.com', 'secret');
+  const [sql, params] = connection.execute.mock.calls[1];
+  expect(sql).toBe('UPDATE user SET password=?, email=?, name=? WHERE id=?');
+  expect(params.slice(1)).toEqual(['new@test.com', 'New', 7]);
+  expect(await bcrypt.compare('secret', params[0])).toBe(true);
+  expect(reload).toHaveBeenCalledWith('new@test.com');
 });
 test('an empty update does not issue UPDATE', async () => {
   jest.spyOn(DB, 'getUser').mockResolvedValue({ id: 7 });
+  results([{ email: 'old@test.com' }]);
   await DB.updateUser(7);
-  expect(connection.execute).not.toHaveBeenCalled();
+  expect(connection.execute).toHaveBeenCalledTimes(1);
+  expect(DB.getUser).toHaveBeenCalledWith('old@test.com');
+  expect(connection.end).toHaveBeenCalled();
+});
+
+test('name-only updates preserve email and safely bind apostrophes', async () => {
+  jest.spyOn(DB, 'getUser').mockResolvedValue({ id: 7, name: "O'Brien" });
+  results([{ email: 'old@test.com' }]);
+  await DB.updateUser(7, "O'Brien");
+  expect(connection.execute).toHaveBeenLastCalledWith('UPDATE user SET name=? WHERE id=?', ["O'Brien", 7]);
+  expect(DB.getUser).toHaveBeenCalledWith('old@test.com');
+});
+
+test('updating an unknown user returns 404 and releases the connection', async () => {
+  await expect(DB.updateUser(99, 'Missing')).rejects.toMatchObject({ statusCode: 404 });
+  expect(connection.end).toHaveBeenCalled();
+});
+
+test('user listing paginates before loading roles and omits password hashes', async () => {
+  results([{ id: 3, name: 'Pizza', email: 'p@test.com' }, { id: 4 }], [{ role: Role.Diner, objectId: 0 }, { role: Role.Franchisee, objectId: 5 }]);
+  expect(await DB.getUsers(2, 1, '*Pizza*')).toEqual([[{ id: 3, name: 'Pizza', email: 'p@test.com', roles: [{ role: Role.Diner, objectId: undefined }, { role: Role.Franchisee, objectId: 5 }] }], true]);
+  expect(connection.execute).toHaveBeenNthCalledWith(1, 'SELECT id, name, email FROM user WHERE name LIKE ? ORDER BY id LIMIT 2 OFFSET 2', ['%Pizza%']);
+  expect(connection.end).toHaveBeenCalled();
+});
+
+test('empty and final user pages have no more results', async () => {
+  expect(await DB.getUsers()).toEqual([[], false]);
+  results([{ id: 1, name: 'Admin', email: 'a@test.com' }], []);
+  expect(await DB.getUsers(0, 10, "*O'Brien*")).toEqual([[{ id: 1, name: 'Admin', email: 'a@test.com', roles: [] }], false]);
+  expect(connection.execute).toHaveBeenCalledWith(expect.stringContaining('ORDER BY id'), ["%O'Brien%"]);
+});
+
+test('user listing failures release the connection', async () => {
+  connection.execute.mockRejectedValueOnce(new Error('offline'));
+  await expect(DB.getUsers()).rejects.toThrow('offline');
+  expect(connection.end).toHaveBeenCalled();
+});
+
+test('deletion revokes all sessions and removes roles before the user atomically', async () => {
+  results({}, {}, { affectedRows: 1 });
+  await DB.deleteUser(7);
+  expect(connection.execute.mock.calls).toEqual([
+    ['DELETE FROM auth WHERE userId=?', [7]],
+    ['DELETE FROM userRole WHERE userId=?', [7]],
+    ['DELETE FROM user WHERE id=?', [7]],
+  ]);
+  expect(connection.commit).toHaveBeenCalled();
+  expect(connection.rollback).not.toHaveBeenCalled();
+  expect(connection.end).toHaveBeenCalled();
+});
+
+test('deleting an unknown user rolls back and returns 404', async () => {
+  results({}, {}, { affectedRows: 0 });
+  await expect(DB.deleteUser(99)).rejects.toMatchObject({ statusCode: 404 });
+  expect(connection.rollback).toHaveBeenCalled();
+  expect(connection.commit).not.toHaveBeenCalled();
+  expect(connection.end).toHaveBeenCalled();
+});
+
+test('failed user deletion rolls back session and role removal', async () => {
+  connection.execute.mockRejectedValueOnce(new Error('offline'));
+  await expect(DB.deleteUser(7)).rejects.toThrow('offline');
+  expect(connection.rollback).toHaveBeenCalled();
+  expect(connection.commit).not.toHaveBeenCalled();
   expect(connection.end).toHaveBeenCalled();
 });
 test('authentication persists only token signatures and detects revoked tokens', async () => {

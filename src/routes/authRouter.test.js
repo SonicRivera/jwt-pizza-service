@@ -2,7 +2,7 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 jest.mock('../database/database', () => ({
   Role: jest.requireActual('../model/model').Role,
-  DB: Object.fromEntries(['addUser', 'getUser', 'loginUser', 'logoutUser', 'isLoggedIn', 'updateUser', 'getMenu', 'addMenuItem', 'getOrders', 'addDinerOrder', 'getFranchises', 'getUserFranchises', 'createFranchise', 'deleteFranchise', 'getFranchise', 'createStore', 'deleteStore'].map(name => [name, jest.fn()])),
+  DB: Object.fromEntries(['addUser', 'getUser', 'loginUser', 'logoutUser', 'isLoggedIn', 'updateUser', 'getUsers', 'deleteUser', 'getMenu', 'addMenuItem', 'getOrders', 'addDinerOrder', 'getFranchises', 'getUserFranchises', 'createFranchise', 'deleteFranchise', 'getFranchise', 'createStore', 'deleteStore'].map(name => [name, jest.fn()])),
 }));
 const { DB } = require('../database/database');
 const config = require('../config');
@@ -70,9 +70,47 @@ test('only administrators can update another user', async () => {
   DB.updateUser.mockResolvedValue(user);
   expect((await authorized('put', '/api/user/8', 'admin').send({ name: 'new' })).status).toBe(200);
 });
-test('placeholder user endpoints retain their documented responses', async () => {
-  expect((await authorized('get', '/api/user')).body).toEqual({ message: 'not implemented', users: [], more: false });
-  expect((await authorized('delete', '/api/user/7')).body).toEqual({ message: 'not implemented' });
+test.each(['get', 'delete'])('user %s requires authentication and administrator role', async method => {
+  const path = method === 'get' ? '/api/user' : '/api/user/7';
+  expect((await request(app)[method](path)).status).toBe(401);
+  expect((await authorized(method, path)).status).toBe(403);
+  expect(DB.getUsers).not.toHaveBeenCalled();
+  expect(DB.deleteUser).not.toHaveBeenCalled();
+});
+
+test('admin user listing forwards numeric pagination and name filter', async () => {
+  DB.getUsers.mockResolvedValue([[user], true]);
+  const res = await authorized('get', '/api/user?page=2&limit=3&name=*pizza*', 'admin');
+  expect(res.status).toBe(200);
+  expect(res.body).toEqual({ users: [user], more: true });
+  expect(DB.getUsers).toHaveBeenCalledWith(2, 3, '*pizza*');
+  DB.getUsers.mockResolvedValue([[], false]);
+  expect((await authorized('get', '/api/user', 'admin')).body).toEqual({ users: [], more: false });
+  expect(DB.getUsers).toHaveBeenLastCalledWith(0, 10, '*');
+});
+
+test.each(['page=-1', 'page=abc', 'page=1.5', 'limit=0', 'limit=101', 'limit=abc', 'name[x]=a'])('invalid user query %s is rejected', async query => {
+  expect((await authorized('get', `/api/user?${query}`, 'admin')).status).toBe(400);
+  expect(DB.getUsers).not.toHaveBeenCalled();
+});
+
+test('admin can delete any user, including themselves', async () => {
+  for (const id of [7, 8]) {
+    expect((await authorized('delete', `/api/user/${id}`, 'admin')).body).toEqual({ message: 'user deleted' });
+    expect(DB.deleteUser).toHaveBeenLastCalledWith(id);
+  }
+});
+
+test.each(['0', '-1', 'abc', '1.5'])('invalid user id %s is rejected', async id => {
+  expect((await authorized('delete', `/api/user/${id}`, 'admin')).status).toBe(400);
+  expect(DB.deleteUser).not.toHaveBeenCalled();
+});
+
+test('missing user and database failures propagate from deletion and listing', async () => {
+  DB.deleteUser.mockRejectedValue(Object.assign(new Error('unknown user'), { statusCode: 404 }));
+  expect((await authorized('delete', '/api/user/99', 'admin')).status).toBe(404);
+  DB.getUsers.mockRejectedValue(new Error('offline'));
+  expect((await authorized('get', '/api/user', 'admin')).status).toBe(500);
 });
 test('public endpoints return version, documentation, CORS and not-found responses', async () => {
   const res = await request(app).get('/').set('Origin', 'https://example.test');
