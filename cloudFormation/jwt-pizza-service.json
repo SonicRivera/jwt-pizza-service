@@ -1,0 +1,233 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "JWT Pizza Service infrastructure",
+  "Parameters": {
+    "ServiceName": {
+      "Type": "String",
+      "Description": "Unique name for the JWT Pizza Service",
+      "Default": "jwt-pizza-service-next",
+      "MaxLength": 32,
+      "AllowedPattern": "^[a-zA-Z][a-zA-Z0-9-]*$"
+    },
+    "CertificateArn": {
+      "Type": "String",
+      "Description": "ACM certificate ARN in the same AWS region as the load balancer",
+      "Default": "arn:aws:acm:us-east-1:203918884677:certificate/894290ca-7547-4e08-a5eb-db9218e9955f"
+    },
+    "VpcID": {
+      "Type": "String",
+      "Description": "The ID of the VPC for the ALB",
+      "Default": "vpc-0e4f453e100325550",
+      "AllowedPattern": "^(?:vpc-[0-9a-f]{8,17}|)$",
+      "ConstraintDescription": "VPC ID must begin with 'vpc-' and have a valid uuid"
+    },
+    "SubnetIDs": {
+      "Type": "CommaDelimitedList",
+      "Description": "A comma delimited list of VPC network subnets for the ECS service and ALB",
+      "Default": "subnet-029afeb5da9eb7cac,subnet-0371c4ed2e628cc29,subnet-00d56230d7a2a3c8a,subnet-08d6124a8e58d7a5f,subnet-0f0ac6ced4459fcb4,subnet-0a1601b5b7c0cc2dc"
+    },
+    "SecurityGroupIDs": {
+      "Type": "CommaDelimitedList",
+      "Description": "ECS service and ALB Security groups",
+      "Default": "sg-070009b030124a314"
+    },
+    "TaskDefinition": {
+      "Type": "String",
+      "Description": "Existing Fargate task definition family or ARN (optionally with revision)",
+      "Default": "jwt-pizza-service:1"
+    },
+    "ContainerName": {
+      "Type": "String",
+      "Description": "Exact container name in the existing task definition; independent of the new service name",
+      "Default": "jwt-pizza-service"
+    }
+  },
+  "Resources": {
+    "ECSCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterName": {
+          "Ref": "ServiceName"
+        }
+      }
+    },
+    "ECSService": {
+      "Type": "AWS::ECS::Service",
+      "Properties": {
+        "Cluster": {
+          "Ref": "ECSCluster"
+        },
+        "CapacityProviderStrategy": [
+          {
+            "CapacityProvider": "FARGATE",
+            "Base": 0,
+            "Weight": 1
+          }
+        ],
+        "TaskDefinition": {
+          "Ref": "TaskDefinition"
+        },
+        "ServiceName": {
+          "Ref": "ServiceName"
+        },
+        "SchedulingStrategy": "REPLICA",
+        "DesiredCount": 1,
+        "LoadBalancers": [
+          {
+            "ContainerName": {
+              "Ref": "ContainerName"
+            },
+            "ContainerPort": 80,
+            "TargetGroupArn": {
+              "Ref": "TargetGroup"
+            }
+          }
+        ],
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "SecurityGroups": {
+              "Ref": "SecurityGroupIDs"
+            },
+            "Subnets": {
+              "Ref": "SubnetIDs"
+            }
+          }
+        },
+        "PlatformVersion": "LATEST",
+        "DeploymentConfiguration": {
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 100,
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true
+          }
+        },
+        "DeploymentController": {
+          "Type": "ECS"
+        },
+        "ServiceConnectConfiguration": {
+          "Enabled": false
+        },
+        "Tags": [],
+        "EnableECSManagedTags": true,
+        "HealthCheckGracePeriodSeconds": 60
+      },
+      "DependsOn": [
+        "Listener"
+      ]
+    },
+    "LoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "Type": "application",
+        "Name": {
+          "Ref": "ServiceName"
+        },
+        "SecurityGroups": {
+          "Ref": "SecurityGroupIDs"
+        },
+        "Subnets": {
+          "Ref": "SubnetIDs"
+        }
+      }
+    },
+    "TargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "HealthCheckPath": "/",
+        "Name": {
+          "Ref": "ServiceName"
+        },
+        "Port": 80,
+        "Protocol": "HTTP",
+        "TargetType": "ip",
+        "HealthCheckProtocol": "HTTP",
+        "VpcId": {
+          "Ref": "VpcID"
+        },
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "300"
+          }
+        ]
+      }
+    },
+    "Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "DefaultActions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": {
+              "Ref": "TargetGroup"
+            }
+          }
+        ],
+        "LoadBalancerArn": {
+          "Ref": "LoadBalancer"
+        },
+        "Port": 443,
+        "Protocol": "HTTPS",
+        "Certificates": [
+          {
+            "CertificateArn": {
+              "Ref": "CertificateArn"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "ClusterName": {
+      "Description": "Cluster",
+      "Value": {
+        "Ref": "ECSCluster"
+      }
+    },
+    "ECSService": {
+      "Description": "Service",
+      "Value": {
+        "Ref": "ECSService"
+      }
+    },
+    "LoadBalancer": {
+      "Description": "Load balancer",
+      "Value": {
+        "Ref": "LoadBalancer"
+      }
+    },
+    "Listener": {
+      "Description": "Load balancer listener",
+      "Value": {
+        "Ref": "Listener"
+      }
+    },
+    "TargetGroup": {
+      "Description": "Load balancer target group",
+      "Value": {
+        "Ref": "TargetGroup"
+      }
+    },
+    "LoadBalancerDNSName": {
+      "Description": "Use this DNS name as the target of your pizza-service DNS record",
+      "Value": {
+        "Fn::GetAtt": [
+          "LoadBalancer",
+          "DNSName"
+        ]
+      }
+    },
+    "LoadBalancerCanonicalHostedZoneID": {
+      "Description": "Hosted zone ID for a Route 53 alias record",
+      "Value": {
+        "Fn::GetAtt": [
+          "LoadBalancer",
+          "CanonicalHostedZoneID"
+        ]
+      }
+    }
+  }
+}
