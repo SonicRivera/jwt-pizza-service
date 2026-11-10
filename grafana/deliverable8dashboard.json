@@ -5,8 +5,8 @@
     "name": "sn9swgl",
     "namespace": "stacks-1915141",
     "uid": "62ee8fa6-21ba-4d7e-9a97-34f71773df34",
-    "resourceVersion": "2119998528315838464",
-    "generation": 34,
+    "resourceVersion": "2120025810889818112",
+    "generation": 40,
     "creationTimestamp": "2026-11-10T00:43:29Z",
     "labels": {
       "grafana.app/deprecatedInternalID": "3262235795423232"
@@ -15,7 +15,7 @@
       "grafana.app/createdBy": "user:dg3twchq44etca",
       "grafana.app/saved-from-ui": "Grafana Cloud",
       "grafana.app/updatedBy": "user:dg3twchq44etca",
-      "grafana.app/updatedTimestamp": "2026-11-10T03:40:11Z"
+      "grafana.app/updatedTimestamp": "2026-11-10T05:28:36Z"
     }
   },
   "spec": {
@@ -66,7 +66,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(\n  rate(http_requests_total{\n    source=\"jwt-pizza-service-dev\"\n  }[$__rate_interval])\n) * 60",
+                        "expr": "sum(\n  rate(http_requests_total{\n    source=\"jwt-pizza-service\"\n  }[$__rate_interval])\n) * 60",
                         "legendFormat": "__auto",
                         "range": true
                       }
@@ -150,7 +150,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(\n  rate(pizza_revenue_total{\n    source=\"jwt-pizza-service-dev\"\n  }[$__rate_interval])\n) * 60",
+                        "expr": "sum(\n  rate(pizza_revenue_total{\n    source=\"jwt-pizza-service\"\n  }[$__rate_interval])\n) * 60",
                         "legendFormat": "__auto",
                         "range": true
                       }
@@ -264,7 +264,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (endpoint) (\n  rate(http_request_duration_seconds_sum{\n    source=\"jwt-pizza-service-dev\"\n  }[$__rate_interval])\n)\n/\nsum by (endpoint) (\n  rate(http_request_duration_seconds_count{\n    source=\"jwt-pizza-service-dev\"\n  }[$__rate_interval])\n)",
+                        "expr": "sum by (endpoint) (\n  rate(http_request_duration_seconds_sum{\n    source=\"jwt-pizza-service\",\n    endpoint!~\".*unmatched.*\"\n  }[$__rate_interval])\n)\n/\nsum by (endpoint) (\n  rate(http_request_duration_seconds_count{\n    source=\"jwt-pizza-service\",\n    endpoint!~\".*unmatched.*\"\n  }[$__rate_interval])\n)",
                         "legendFormat": "{{endpoint}}",
                         "range": true
                       }
@@ -380,7 +380,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(\n  rate(pizza_creation_duration_seconds_sum{\n    source=\"jwt-pizza-service-dev\"\n  }[$__rate_interval])\n)\n/\nsum(\n  rate(pizza_creation_duration_seconds_count{\n    source=\"jwt-pizza-service-dev\"\n  }[$__rate_interval])\n)",
+                        "expr": "sum(\n  rate(pizza_creation_duration_seconds_sum{\n    source=\"jwt-pizza-service\"\n  }[$__rate_interval])\n)\n/\nsum(\n  rate(pizza_creation_duration_seconds_count{\n    source=\"jwt-pizza-service\"\n  }[$__rate_interval])\n)",
                         "legendFormat": "__auto",
                         "range": true
                       }
@@ -496,7 +496,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (method) (\n  rate(http_requests_total{\n    source=\"jwt-pizza-service-dev\",\n    method=~\"GET|PUT|POST|DELETE\"\n  }[$__rate_interval])\n) * 60",
+                        "expr": "sum by (method) (\n  rate(http_requests_total{\n    source=\"jwt-pizza-service\",\n    method=~\"GET|PUT|POST|DELETE\"\n  }[$__rate_interval])\n) * 60",
                         "legendFormat": "{{method}}",
                         "range": true
                       }
@@ -611,7 +611,7 @@
                       "spec": {
                         "editorMode": "code",
                         "exemplar": false,
-                        "expr": "sum(active_users_ratio{source=\"jwt-pizza-service-dev\"})",
+                        "expr": "sum(active_users_ratio{source=\"jwt-pizza-service\"})",
                         "instant": true,
                         "legendFormat": "__auto",
                         "range": false
@@ -697,7 +697,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (result) (\n  rate(auth_attempts_total{\n    source=\"jwt-pizza-service-dev\"\n  }[$__rate_interval])\n) * 60",
+                        "expr": "sum by (result) (\n  rate(auth_attempts_total{\n    source=\"jwt-pizza-service\"\n  }[$__rate_interval])\n) * 60",
                         "legendFormat": "{{result}}",
                         "range": true
                       }
@@ -812,7 +812,7 @@
                       "spec": {
                         "editorMode": "code",
                         "exemplar": false,
-                        "expr": "avg(cpu_usage_percent{source=\"jwt-pizza-service-dev\"})",
+                        "expr": "avg(cpu_usage_percent{source=\"jwt-pizza-service\"})",
                         "instant": true,
                         "legendFormat": "__auto",
                         "range": false
@@ -913,7 +913,7 @@
                       "spec": {
                         "editorMode": "code",
                         "exemplar": false,
-                        "expr": "avg(memory_usage_percent{source=\"jwt-pizza-service-dev\"})",
+                        "expr": "avg(memory_usage_percent{source=\"jwt-pizza-service\"})",
                         "instant": true,
                         "legendFormat": "__auto",
                         "range": false
@@ -1013,7 +1013,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(\n  rate(pizzas_sold_total{\n    source=\"jwt-pizza-service-dev\"\n  }[$__rate_interval])\n) * 60",
+                        "expr": "sum(\n  rate(pizzas_sold_total{\n    source=\"jwt-pizza-service\"\n  }[$__rate_interval])\n) * 60",
                         "legendFormat": "Pizzas sold/minute",
                         "range": true
                       }
@@ -1128,7 +1128,7 @@
                       "spec": {
                         "editorMode": "code",
                         "exemplar": false,
-                        "expr": "sum(\n  increase(pizza_creation_failures_total{\n    source=\"jwt-pizza-service-dev\"\n  }[$__range])\n)",
+                        "expr": "sum(\n  increase(pizza_creation_failures_total{\n    source=\"jwt-pizza-service\"\n  }[$__range])\n)",
                         "instant": true,
                         "legendFormat": "__auto",
                         "range": false
@@ -1307,8 +1307,8 @@
     "tags": [],
     "timeSettings": {
       "timezone": "browser",
-      "from": "2026-11-10T03:24:26.000Z",
-      "to": "2026-11-10T03:39:26.000Z",
+      "from": "2026-11-10T05:15:00.000Z",
+      "to": "2026-11-10T05:30:00.000Z",
       "autoRefresh": "",
       "autoRefreshIntervals": [
         "5s",
