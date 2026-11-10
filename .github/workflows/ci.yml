@@ -55,6 +55,12 @@ jobs:
               url: 'https://pizza-factory.cs329.click',
               apiKey: '${{ secrets.FACTORY_API_KEY }}',
             },
+            metrics: {
+              source: 'jwt-pizza-service',
+              endpointUrl: '${{ secrets.METRICS_ENDPOINT_URL }}',
+              apiKey: '${{ secrets.METRICS_API_KEY }}',
+              accountId: '${{ secrets.METRICS_ACCOUNT_ID }}',
+            },            
           };" > src/config.js
 
       - name: Tests
@@ -130,4 +136,4 @@ jobs:
       
       - name: Deploy new container
         run: |
-          aws ecs update-service --cluster jwt-pizza-service --service jwt-pizza-service-service-0tjjo7ar --force-new-deployment
+          aws ecs update-service --cluster jwt-pizza-service-next --service jwt-pizza-service-next --force-new-deployment
