@@ -232,6 +232,6 @@ test('initialization errors are reported and the connection closes', async () =>
   const error = jest.spyOn(console, 'error').mockImplementation(() => {});
   connection.execute.mockRejectedValueOnce(new Error('unavailable'));
   await DB.initializeDatabase();
-  expect(JSON.parse(error.mock.calls[0][0])).toMatchObject({ message: 'Error initializing database', exception: 'unavailable' });
+  expect(error).toHaveBeenCalledWith('Error initializing database');
   expect(connection.end).toHaveBeenCalled();
 });

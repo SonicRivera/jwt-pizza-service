@@ -2,6 +2,8 @@
   "collectCoverage": true,
   "collectCoverageFrom": ["src/**/*.js", "scripts/**/*.js", "!src/**/*.test.js", "!src/config.js"],
   "setupFiles": ["<rootDir>/test/setup.js"],
+  "testPathIgnorePatterns": ["/node_modules/", "<rootDir>/dist/"],
+  "modulePathIgnorePatterns": ["<rootDir>/dist/"],
   "coverageReporters": ["json-summary", "text"],
   "coverageThreshold": {
     "global": {
